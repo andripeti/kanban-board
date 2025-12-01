@@ -1,10 +1,10 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import Sidebar from "../components/Sidebar";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Header from "../components/Header";
 import KanbanBoardNew from "../components/KanbanBoardNew";
+import Sidebar, { SHOW_ALL_TEAMS } from "../components/Sidebar";
 import TableView from "../components/TableView";
 import { getTasks } from "../lib/api/tasks";
 
@@ -16,7 +16,8 @@ export default function Page() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeView, setActiveView] = useState("kanban");
-  const [activeTeam, setActiveTeam] = useState(null);
+  const [activeTeam, setActiveTeam] = useState(SHOW_ALL_TEAMS);
+  const [activeProject, setActiveProject] = useState(null);
   const [priorityFilter, setPriorityFilter] = useState([]);
 
   // Load active team from localStorage on mount or when user changes
@@ -64,8 +65,16 @@ export default function Page() {
     setSearchQuery(query);
   };
 
-  const handleTeamChange = (teamName) => {
-    setActiveTeam(teamName);
+  const handleTeamChange = (teamId) => {
+    if (teamId === null) {
+      setActiveTeam(null);
+      return;
+    }
+    setActiveTeam(teamId ?? SHOW_ALL_TEAMS);
+  };
+
+  const handleProjectChange = (projectId) => {
+    setActiveProject(projectId || null);
   };
 
   const handlePriorityFilter = (priorities) => {
@@ -73,27 +82,38 @@ export default function Page() {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    // Filter by team first
-    if (activeTeam !== null) {
-      // If a team is selected, only show tasks that belong to that team
-      if (task.teamId !== activeTeam) {
-        return false;
+    const matchesActiveProject = Boolean(activeProject && task.projectId === activeProject);
+
+    const teamMatches = (() => {
+      if (activeTeam === SHOW_ALL_TEAMS) return true;
+      if (matchesActiveProject && activeTeam !== null) return true;
+      if (activeTeam === null) {
+        return task.teamId === null || task.teamId === undefined;
       }
-    } else {
-      // If no team is selected, only show tasks with no team (teamId is null or undefined)
-      if (task.teamId !== null && task.teamId !== undefined) {
+      return (
+        task.teamId === activeTeam ||
+        task.teamId === null ||
+        task.teamId === undefined
+      );
+    })();
+
+    if (!teamMatches) {
+      return false;
+    }
+
+    if (activeProject) {
+      const projectlessVisible =
+        activeTeam !== SHOW_ALL_TEAMS &&
+        (task.projectId === null || task.projectId === undefined);
+      if (!matchesActiveProject && !projectlessVisible) {
         return false;
       }
     }
 
-    // Filter by priority
-    if (priorityFilter.length > 0) {
-      if (!priorityFilter.includes(task.priority)) {
-        return false;
-      }
+    if (priorityFilter.length > 0 && !priorityFilter.includes(task.priority)) {
+      return false;
     }
 
-    // Then filter by search query
     if (!searchQuery || searchQuery.trim() === "") return true;
     const query = searchQuery.toLowerCase().trim();
     const titleMatch = task.title && task.title.toLowerCase().includes(query);
@@ -104,14 +124,19 @@ export default function Page() {
 
   return (
     <div className="app-layout">
-      <Sidebar onTeamChange={handleTeamChange} />
+      <Sidebar onTeamChange={handleTeamChange} onProjectChange={handleProjectChange} />
       <div className="main-content">
         <Header
           onAddNew={() => {
-            const url = activeTeam
-              ? `/new-task?team=${encodeURIComponent(activeTeam)}`
-              : "/new-task";
-            router.push(url);
+            const params = new URLSearchParams();
+            if (activeTeam && activeTeam !== SHOW_ALL_TEAMS) {
+              params.set("team", activeTeam);
+            }
+            if (activeProject) {
+              params.set("project", activeProject);
+            }
+            const query = params.toString();
+            router.push(`/new-task${query ? `?${query}` : ""}`);
           }}
           onSearch={handleSearch}
           activeView={activeView}
