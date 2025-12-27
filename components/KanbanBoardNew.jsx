@@ -10,6 +10,7 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
     description: "",
     priority: "medium",
   });
+  const [draggedTask, setDraggedTask] = useState(null);
 
   // UI Columns
   const columns = [
@@ -130,13 +131,43 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
     }
   }
 
+  // Drag and Drop handlers
+  const handleDragStart = (e, task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.currentTarget);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e, targetColumn) => {
+    e.preventDefault();
+    if (!draggedTask) return;
+
+    // Move task to the target column
+    await moveTask(draggedTask, targetColumn);
+    setDraggedTask(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+  };
+
   return (
     <div className="kanban-board-new">
       {columns.map((col) => {
         const columnTasks = getTasksForColumn(col.key);
 
         return (
-          <div key={col.key} className="kanban-column-new">
+          <div
+            key={col.key}
+            className="kanban-column-new"
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, col.key)}
+          >
             {/* Column Header */}
             <div className="kanban-column-header-new">
               <h3 className="kanban-column-title-new">{col.title}</h3>
@@ -146,7 +177,11 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
             </div>
 
             {/* Column Body */}
-            <div className="kanban-column-body-new">
+            <div
+              className="kanban-column-body-new"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, col.key)}
+            >
               {columnTasks.length === 0 ? (
                 <div className="kanban-empty-new">No tasks</div>
               ) : (
@@ -221,6 +256,9 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
                         /* View Mode */
                         <div
                           className="task-card-new"
+                          draggable="true"
+                          onDragStart={(e) => handleDragStart(e, task)}
+                          onDragEnd={handleDragEnd}
                           style={{
                             borderLeft: `3px solid ${
                               task.priority === "high"
@@ -229,6 +267,8 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
                                 ? "#ffc069"
                                 : "#91d5ff"
                             }`,
+                            cursor: 'grab',
+                            opacity: draggedTask?._id === task._id ? 0.5 : 1,
                           }}
                         >
                           {/* Top: Avatar + Title */}

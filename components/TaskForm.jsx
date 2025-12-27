@@ -1,13 +1,39 @@
 "use client"
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createTask } from '../lib/api/tasks'
+import { getTeams } from '../lib/api/teams'
 
-export default function TaskForm({ onCreated }){
+export default function TaskForm({ onCreated, selectedTeamId }){
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('medium')
+  const [teamId, setTeamId] = useState(selectedTeamId || '')
+  const [assignedTo, setAssignedTo] = useState('')
+  const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    fetchTeams()
+  }, [])
+
+  useEffect(() => {
+    if (selectedTeamId) {
+      setTeamId(selectedTeamId)
+    }
+  }, [selectedTeamId])
+
+  const fetchTeams = async () => {
+    try {
+      const { teams: fetchedTeams } = await getTeams()
+      setTeams(fetchedTeams)
+    } catch (err) {
+      console.error('Failed to fetch teams:', err)
+    }
+  }
+
+  const selectedTeam = teams.find(t => t._id === teamId)
+  const teamMembers = selectedTeam?.members || []
 
   async function handleSubmit(e){
     e.preventDefault()
@@ -18,12 +44,22 @@ export default function TaskForm({ onCreated }){
     }
     setLoading(true)
     try{
-      console.log('Creating task with payload:', { title, description, priority, status: 'todo' })
-      const created = await createTask({ title, description, priority, status: 'todo' })
+      const payload = {
+        title,
+        description,
+        priority,
+        status: 'todo',
+        teamId: teamId || null,
+        assignedTo: assignedTo || null
+      }
+      console.log('Creating task with payload:', payload)
+      const created = await createTask(payload)
       console.log('Task created successfully:', created)
       setTitle('')
       setDescription('')
       setPriority('medium')
+      setTeamId(selectedTeamId || '')
+      setAssignedTo('')
       if (onCreated) {
         await onCreated(created)
       }
@@ -99,8 +135,58 @@ export default function TaskForm({ onCreated }){
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'var(--jira-text-secondary)',
+              marginBottom: '4px'
+            }}>
+              Priority
+            </label>
+            <select
+              className="input"
+              value={priority}
+              onChange={e => setPriority(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'var(--jira-text-secondary)',
+              marginBottom: '4px'
+            }}>
+              Team (optional)
+            </label>
+            <select
+              className="input"
+              value={teamId}
+              onChange={e => {
+                setTeamId(e.target.value)
+                setAssignedTo('')
+              }}
+              style={{ width: '100%' }}
+            >
+              <option value="">No Team</option>
+              {teams.map(team => (
+                <option key={team._id} value={team._id}>
+                  {team.name} ({team.members?.length || 0} members)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {teamId && teamMembers.length > 0 && (
+            <div>
               <label style={{
                 display: 'block',
                 fontSize: '12px',
@@ -108,29 +194,37 @@ export default function TaskForm({ onCreated }){
                 color: 'var(--jira-text-secondary)',
                 marginBottom: '4px'
               }}>
-                Priority
+                Assign to (optional)
               </label>
               <select
                 className="input"
-                value={priority}
-                onChange={e => setPriority(e.target.value)}
+                value={assignedTo}
+                onChange={e => setAssignedTo(e.target.value)}
                 style={{ width: '100%' }}
               >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="">Unassigned</option>
+                {teamMembers.map(member => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.name} ({member.role}) - {member.email}
+                  </option>
+                ))}
               </select>
+              <div style={{ fontSize: '11px', color: 'var(--jira-text-secondary)', marginTop: '4px' }}>
+                💡 Assigned user will receive an email notification
+              </div>
             </div>
+          )}
 
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
             <button
               type="submit"
               className="btn"
               disabled={loading}
               style={{
-                minWidth: '100px'
+                minWidth: '120px'
               }}
             >
-              {loading ? 'Creating...' : 'Create'}
+              {loading ? 'Creating...' : 'Create Task'}
             </button>
           </div>
         </div>
