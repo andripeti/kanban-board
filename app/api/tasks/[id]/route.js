@@ -1,11 +1,27 @@
-import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth';
 import dbConnect from '@/lib/db';
+import Project from '@/lib/models/Project';
 import Task from '@/lib/models/Task';
 import User from '@/lib/models/User';
 import Team from '@/lib/models/Team';
 import { requireAuth } from '@/lib/auth';
 import { sendTaskAssignmentEmail } from '@/lib/email';
+import Team from '@/lib/models/Team';
 import mongoose from 'mongoose';
+import { NextResponse } from 'next/server';
+
+function serializeTask(taskDoc) {
+  const task = taskDoc.toObject({ virtuals: false });
+  return {
+    ...task,
+    _id: task._id.toString(),
+    userId: task.userId.toString(),
+    teamId: task.teamId ? task.teamId.toString() : null,
+    projectId: task.projectId ? task.projectId.toString() : null,
+    createdAt: task.createdAt?.toISOString?.() || task.createdAt,
+    updatedAt: task.updatedAt?.toISOString?.() || task.updatedAt,
+  };
+}
 
 // GET single task
 export async function GET(request, { params }) {
@@ -25,7 +41,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ task }, { status: 200 });
+    return NextResponse.json({ task: serializeTask(task) }, { status: 200 });
   } catch (error) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -61,6 +77,7 @@ export async function PUT(request, { params }) {
     const previousAssignedTo = task.assignedTo ? task.assignedTo.toString() : null;
 
     const allowedFields = ['title', 'description', 'status', 'priority', 'scheduled', 'teamId', 'assignedTo'];
+    const allowedFields = ['title', 'description', 'status', 'priority', 'scheduled'];
     allowedFields.forEach((field) => {
       if (body[field] !== undefined) {
         task[field] = body[field];
@@ -131,8 +148,51 @@ export async function PUT(request, { params }) {
     } else {
       await task.save();
     }
+    if (body.teamId !== undefined) {
+      if (body.teamId === null) {
+        task.teamId = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(body.teamId)) {
+          return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
+        }
+        const team = await Team.findOne({ _id: body.teamId, userId: session.user.id });
+        if (!team) {
+          return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+        }
+        task.teamId = team._id;
+      }
+    }
 
-    return NextResponse.json({ task }, { status: 200 });
+    if (body.projectId !== undefined) {
+      if (body.projectId === null) {
+        task.projectId = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(body.projectId)) {
+          return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
+        }
+        const project = await Project.findOne({ _id: body.projectId, userId: session.user.id });
+        if (!project) {
+          return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        }
+        task.projectId = project._id;
+
+        if (task.teamId) {
+          const projectTeamIds = project.teamIds.map((id) => id.toString());
+          if (projectTeamIds.length > 0 && !projectTeamIds.includes(task.teamId.toString())) {
+            return NextResponse.json(
+              { error: 'Project is not assigned to the selected team' },
+              { status: 400 }
+            );
+          }
+        } else if (project.teamIds.length === 1) {
+          task.teamId = project.teamIds[0];
+        }
+      }
+    }
+
+    await task.save();
+
+    return NextResponse.json({ task: serializeTask(task) }, { status: 200 });
   } catch (error) {
     if (error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
