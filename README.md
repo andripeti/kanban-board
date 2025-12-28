@@ -1,86 +1,91 @@
 # Next.js Kanban Task Manager
 
-This is a small Next.js (App Router) project implementing a Task/To‑Do manager with a Kanban board UI and a MongoDB backend (via Mongoose).
+An authenticated task manager built with Next.js 14 (App Router), NextAuth Credentials, MongoDB/Mongoose, and a Kanban board powered by dnd-kit.
 
-Purpose
-- Demo app showing a full-stack Next.js App Router setup: route handlers, Mongoose models, client components, and a Kanban UI.
+## Features
+- **Auth**: registration + login with NextAuth Credentials (bcrypt-hashed passwords)
+- **Task workflows**: Kanban (drag/drop) and table view
+- **Teams and projects**: organize tasks by team and/or project, including unassigned work
+- **Filtering**: search, team/project filters, and priority chips
+- **REST APIs**: App Router route handlers under `app/api/*` with ownership checks
 
-Key features
-- Mongoose `Task` model: `title`, `description`, `status`, `priority`, `createdAt`, `updatedAt`.
-- API routes under `app/api/tasks` supporting full CRUD.
-- Client components: `TaskForm`, `TaskList`, `KanbanBoard`.
-- Small client API wrapper in `lib/api/tasks.js`.
+## Tech stack
+- Next.js 14 App Router + React
+- NextAuth.js (Credentials provider)
+- MongoDB + Mongoose
+- `@dnd-kit/*` for drag & drop
 
-Quickstart (development)
-1. Install dependencies
+## Getting started
 
-PowerShell
-```
+### Prerequisites
+- Node.js 18+
+- MongoDB (local) or Docker Desktop
+
+### Install
+```powershell
 cd "c:\Users\User\Desktop\Andri\spms"
 npm install
 ```
 
-2. Environment
+### Environment variables
+Create `.env.local` in the project root:
 
-Create `.env.local` in the project root and set your MongoDB connection string. Example for a local MongoDB container or local server:
+| Key | Required | Example |
+| --- | --- | --- |
+| `MONGODB_URI` | ✅ | `mongodb://localhost:27017/kanban` |
+| `NEXTAUTH_SECRET` | ✅ | (random base64 string) |
+| `NEXTAUTH_URL` | ✅ in production | `http://localhost:3000` |
 
+Generate a secret:
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
-MONGODB_URI="mongodb://localhost:27017/kanban"
+
+### Start MongoDB (Docker)
+The provided compose file starts MongoDB only:
+```powershell
+docker compose up -d mongo
 ```
 
-If you run Mongo in Docker Compose (recommended for reproducible local dev), see the `docker-compose.yml` in the repository — the `web` service expects `MONGODB_URI=mongodb://mongo:27017/kanban` by default.
-
-3. Run dev server
-
-PowerShell
-```
+### Run the app
+```powershell
 npm run dev
 ```
-Open http://localhost:3000
+Open `http://localhost:3000`, sign up at `/register`, then log in at `/login`.
 
-Docker (local)
-- To run MongoDB + the web service via Docker Compose (development mode, code mounted):
-
-PowerShell
+## Project structure (high level)
 ```
-cd "c:\Users\User\Desktop\Andri\spms"
-docker compose up -d
-```
-
-The compose file includes a `mongo` service and a `web` service. The `web` service mounts the project and runs `npm run dev`.
-
-API examples
-- List tasks:
-```
-GET http://localhost:3000/api/tasks
-```
-- Create task (JSON):
-```
-POST http://localhost:3000/api/tasks
-Content-Type: application/json
-Body: { "title": "My task", "description": "Details", "priority": "high" }
-```
-- Update task:
-```
-PUT http://localhost:3000/api/tasks/<id>
-Body: { "status": "in-progress" }
-```
-- Delete task:
-```
-DELETE http://localhost:3000/api/tasks/<id>
+app/
+	page.jsx                    # Dashboard (Sidebar + Header + Kanban/Table)
+	login/ register/ new-task/  # Pages
+	api/                        # Route handlers (tasks/teams/projects/auth)
+components/                   # UI components (KanbanBoardNew, Sidebar, Header, ...)
+lib/                          # db/auth helpers + Mongoose models + client API wrappers
+docker-compose.yml            # MongoDB service
 ```
 
-Development notes
-- The Mongoose connection is centralized in `lib/db.js` and caches the connection on `globalThis` to avoid creating many connections during Next.js hot reload.
-- The Task schema is at `lib/models/Task.js`.
-- Kanban board moves tasks by updating the `status` field via the API.
+More details about the dashboard page and its filtering rules are in [app/README.md](app/README.md).
 
-Security & deployment
-- Do not commit `.env.local` or any secrets. Use environment variables on your deployment platform.
-- For production, use a production-ready Node image and a multi-stage Dockerfile. Enable Mongo auth and secure credentials.
+## API surface
+All endpoints return JSON. Auth-protected routes require a valid session.
 
-Contributing
-- Open an issue or submit a pull request. Add tests where appropriate.
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Create a user (`name`, `email`, `password`) |
+| `GET` | `/api/tasks` | List tasks (supports `teamId`, `projectId`, `includeUnassigned`) |
+| `POST` | `/api/tasks` | Create a task |
+| `GET` | `/api/tasks/:id` | Read a single task |
+| `PUT` | `/api/tasks/:id` | Update a task |
+| `DELETE` | `/api/tasks/:id` | Delete a task |
+| `GET` | `/api/teams` | List teams |
+| `POST` | `/api/teams` | Create a team |
+| `GET` | `/api/projects` | List projects (optional `teamId`) |
+| `POST` | `/api/projects` | Create a project |
 
-License
-- This project is provided under the MIT License — see `LICENSE`.
+## Scripts
+- `npm run dev` – start the dev server
+- `npm run build` – production build
+- `npm run start` – run the production server
+
+## License
+MIT (see `LICENSE`).
