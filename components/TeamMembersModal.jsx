@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { addTeamMember } from "../lib/api/teams";
+import UsersListModal from "./UsersListModal";
 
-const ROLES = ["Member", "Tech Lead", "QA"];
+const ROLES = ["Member", "Tech Lead", "QA", "Admin"];
 
 export default function TeamMembersModal({ team, onClose, onUpdate }) {
   const [memberEmail, setMemberEmail] = useState("");
@@ -11,6 +12,7 @@ export default function TeamMembersModal({ team, onClose, onUpdate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [showUsersModal, setShowUsersModal] = useState(false);
 
   const handleAddMember = async () => {
     if (!memberEmail.trim()) return;
@@ -30,6 +32,11 @@ export default function TeamMembersModal({ team, onClose, onUpdate }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectUser = (email) => {
+    setMemberEmail(email);
+    setShowUsersModal(false);
   };
 
   return (
@@ -192,13 +199,38 @@ export default function TeamMembersModal({ team, onClose, onUpdate }) {
                 borderRadius: "4px",
                 cursor: loading || !memberEmail.trim() ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
+                marginBottom: "12px",
               }}
             >
               {loading ? "Adding..." : "Add Member"}
             </button>
+
+            <button
+              onClick={() => setShowUsersModal(true)}
+              style={{
+                width: "100%",
+                padding: "10px 16px",
+                fontSize: "14px",
+                background: "transparent",
+                color: "#8993a4",
+                border: "1px solid #4a5f7f",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              See All Users
+            </button>
           </div>
         </div>
       </div>
+
+      {showUsersModal && (
+        <UsersListModal
+          onClose={() => setShowUsersModal(false)}
+          onSelectUser={handleSelectUser}
+        />
+      )}
     </div>
   );
 }
