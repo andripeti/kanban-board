@@ -9,11 +9,14 @@ import TeamInfoModal from "./TeamInfoModal";
 import TeamMembersModal from "./TeamMembersModal";
 
 export const SHOW_ALL_TEAMS = "__SHOW_ALL_TEAMS__";
+export const MY_WORK = "__MY_WORK__";
+export const UNASSIGNED_PROJECT = "__UNASSIGNED_PROJECT__";
 const UNASSIGNED_SENTINEL = "__UNASSIGNED_TEAM__";
 
 function resolveActiveTeam(savedValue, teams) {
   if (!savedValue) return SHOW_ALL_TEAMS;
   if (savedValue === SHOW_ALL_TEAMS) return SHOW_ALL_TEAMS;
+  if (savedValue === MY_WORK) return MY_WORK;
   if (savedValue === UNASSIGNED_SENTINEL) return null;
   return teams.some((team) => team._id === savedValue) ? savedValue : SHOW_ALL_TEAMS;
 }
@@ -119,6 +122,8 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
     const value =
       activeTeam === SHOW_ALL_TEAMS
         ? SHOW_ALL_TEAMS
+        : activeTeam === MY_WORK
+        ? MY_WORK
         : activeTeam === null
         ? UNASSIGNED_SENTINEL
         : activeTeam;
@@ -206,6 +211,11 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
     setActiveProject(null);
   };
 
+  const handleMyWork = () => {
+    setActiveTeam(MY_WORK);
+    setActiveProject(null);
+  };
+
   const handleSelectUnassigned = () => {
     setActiveTeam(null);
     setActiveProject(null);
@@ -253,6 +263,10 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
 
   const handleSelectProject = (projectId) => {
     setActiveProject(projectId);
+  };
+
+  const handleSelectUnassignedProject = () => {
+    setActiveProject(UNASSIGNED_PROJECT);
   };
 
   const handleCreateProjectTask = (projectId) => {
@@ -314,7 +328,11 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
           </div>
         )}
 
-        <button className="sidebar-item sidebar-item-primary" type="button">
+        <button 
+          className={`sidebar-item sidebar-item-primary ${activeTeam === MY_WORK ? "active" : ""}`}
+          type="button"
+          onClick={handleMyWork}
+        >
           <span className="sidebar-icon">👤</span>
           <span>My work</span>
         </button>
@@ -442,6 +460,7 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
                     onClick={() => handleSelectTeam(team._id)}
                     style={{ flex: 1, padding: "6px 8px", justifyContent: "flex-start" }}
                   >
+                    <span className="sidebar-icon">👥</span>
                     <span>{team.name}</span>
                   </button>
                   <button
@@ -512,6 +531,18 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
           </div>
 
           <div className="sidebar-section-content">
+            {(activeTeam && activeTeam !== SHOW_ALL_TEAMS && activeTeam !== MY_WORK) && (
+              <button
+                className={`sidebar-item sidebar-subitem ${
+                  activeProject === UNASSIGNED_PROJECT ? "active" : ""
+                }`}
+                type="button"
+                onClick={handleSelectUnassignedProject}
+                style={{ padding: "6px 12px", width: "100%", justifyContent: "flex-start" }}
+              >
+                <span>Unassigned</span>
+              </button>
+            )}
             {showProjectInput && (
               <div
                 style={{

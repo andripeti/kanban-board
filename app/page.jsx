@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Header from "../components/Header";
 import KanbanBoardNew from "../components/KanbanBoardNew";
-import Sidebar, { SHOW_ALL_TEAMS } from "../components/Sidebar";
+import Sidebar, { MY_WORK, SHOW_ALL_TEAMS, UNASSIGNED_PROJECT } from "../components/Sidebar";
 import TableView from "../components/TableView";
 import TaskModal from "../components/TaskModal";
 import { getTasks } from "../lib/api/tasks";
@@ -21,6 +21,7 @@ export default function Page() {
   const [activeProject, setActiveProject] = useState(null);
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [teams, setTeams] = useState([]);
 
   useEffect(() => {
     if (!session?.user?.email) {
@@ -40,12 +41,17 @@ export default function Page() {
   const fetchTasks = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const data = await getTasks();
-      setTasks(Array.isArray(data) ? data : []);
+      const [tasksData, teamsData] = await Promise.all([
+        getTasks(),
+        fetch('/api/teams').then(res => res.json())
+      ]);
+      setTasks(Array.isArray(tasksData) ? tasksData : []);
+      setTeams(Array.isArray(teamsData) ? teamsData : []);
       setError(null);
     } catch (err) {
       setError(err.message);
       setTasks([]);
+      setTeams([]);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -82,10 +88,22 @@ export default function Page() {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    const matchesActiveProject = Boolean(activeProject && task.projectId === activeProject);
+    const matchesActiveProject = Boolean(activeProject && activeProject !== UNASSIGNED_PROJECT && task.projectId === activeProject);
+    const isUnassignedProject = activeProject === UNASSIGNED_PROJECT;
 
     const teamMatches = (() => {
       if (activeTeam === SHOW_ALL_TEAMS) return true;
+      if (activeTeam === MY_WORK) {
+        // Show only tasks in teams where user is a member
+        if (!session?.user?.id) return false;
+        if (!task.teamId) return false;
+        const team = teams.find(t => t._id === task.teamId);
+        if (!team) return false;
+        // Check if user is owner or member
+        const isOwner = team.userId === session.user.id;
+        const isMember = team.members?.some(m => m.userId?._id === session.user.id || m.userId === session.user.id);
+        return isOwner || isMember;
+      }
       if (matchesActiveProject && activeTeam !== null) return true;
       if (activeTeam === null) {
         return task.teamId === null || task.teamId === undefined;
@@ -96,6 +114,11 @@ export default function Page() {
 
     if (!teamMatches) {
       return false;
+    }
+
+    if (isUnassignedProject) {
+      // Show tasks that have the active team but NO project
+      return task.teamId === activeTeam && (task.projectId === null || task.projectId === undefined);
     }
 
     if (activeProject) {
