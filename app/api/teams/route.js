@@ -27,7 +27,11 @@ export async function GET() {
     await dbConnect();
 
     const teams = await Team.find({ userId: session.user.id })
-      .populate('members.userId', 'name email')
+      .populate({
+        path: 'members.userId',
+        select: 'name email',
+        options: { strictPopulate: false }
+      })
       .sort({ name: 1 });
     return NextResponse.json({ teams: teams.map(serializeTeam) }, { status: 200 });
   } catch (error) {
