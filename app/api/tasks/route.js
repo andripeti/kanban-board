@@ -14,6 +14,11 @@ function serializeTask(taskDoc) {
     userId: task.userId.toString(),
     teamId: task.teamId ? task.teamId.toString() : null,
     projectId: task.projectId ? task.projectId.toString() : null,
+    assignedTo: task.assignedTo ? {
+      _id: task.assignedTo._id?.toString() || task.assignedTo.toString(),
+      name: task.assignedTo.name,
+      email: task.assignedTo.email
+    } : null,
     createdAt: task.createdAt?.toISOString?.() || task.createdAt,
     updatedAt: task.updatedAt?.toISOString?.() || task.updatedAt,
   };
@@ -53,7 +58,9 @@ export async function GET(request) {
       delete query.projectId;
     }
 
-    const tasks = await Task.find(query).sort({ createdAt: -1 });
+    const tasks = await Task.find(query)
+      .populate('assignedTo', 'name email')
+      .sort({ createdAt: -1 });
 
     return NextResponse.json({ tasks: tasks.map(serializeTask) }, { status: 200 });
   } catch (error) {
@@ -75,7 +82,7 @@ export async function POST(request) {
     const session = await requireAuth();
     const body = await request.json();
 
-    const { title, description, status, priority, teamId, projectId } = body;
+    const { title, description, status, priority, teamId, projectId, assignedTo } = body;
 
     if (!title) {
       return NextResponse.json(
@@ -131,8 +138,12 @@ export async function POST(request) {
       priority: priority || 'medium',
       teamId: resolvedTeamId,
       projectId: resolvedProjectId,
+      assignedTo: assignedTo || null,
       userId: session.user.id,
     });
+
+    // Populate assignedTo before serializing
+    await task.populate('assignedTo', 'name email');
 
     return NextResponse.json({ task: serializeTask(task) }, { status: 201 });
   } catch (error) {

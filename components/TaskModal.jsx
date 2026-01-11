@@ -15,6 +15,8 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
   const [projects, setProjects] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(initialTeam || "");
   const [selectedProject, setSelectedProject] = useState(initialProject || "");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [teamMembers, setTeamMembers] = useState([]);
   const [metaLoading, setMetaLoading] = useState(false);
 
   useEffect(() => {
@@ -58,6 +60,29 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
     if (!teams.some((team) => team._id === selectedTeam)) {
       setSelectedTeam("");
     }
+  }, [selectedTeam, teams]);
+
+  useEffect(() => {
+    async function loadTeamMembers() {
+      if (!selectedTeam) {
+        setTeamMembers([]);
+        setAssignedTo("");
+        return;
+      }
+      try {
+        const team = teams.find(t => t._id === selectedTeam);
+        if (!team) {
+          setTeamMembers([]);
+          return;
+        }
+        const members = team.members || [];
+        setTeamMembers(members);
+      } catch (err) {
+        console.error("Failed to load team members", err);
+        setTeamMembers([]);
+      }
+    }
+    loadTeamMembers();
   }, [selectedTeam, teams]);
 
   useEffect(() => {
@@ -107,7 +132,8 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
         priority,
         status: "todo",
         teamId: selectedTeam || null,
-        projectId: selectedProject || null
+        projectId: selectedProject || null,
+        assignedTo: assignedTo || null
       });
       
       // Reset form
@@ -116,6 +142,7 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
       setPriority("medium");
       setSelectedTeam(initialTeam || "");
       setSelectedProject(initialProject || "");
+      setAssignedTo("");
       setError(null);
       
       if (onTaskCreated) {
@@ -137,6 +164,7 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
     setPriority("medium");
     setSelectedTeam(initialTeam || "");
     setSelectedProject(initialProject || "");
+    setAssignedTo("");
     setError(null);
     setShowPriorityDropdown(false);
     onClose();
@@ -468,6 +496,55 @@ export default function TaskModal({ isOpen, onClose, initialTeam, initialProject
                 </div>
               )}
             </div>
+
+            {/* Assigned To Field */}
+            {selectedTeam && (
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "var(--jira-text-primary)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Assign to
+                </label>
+                <select
+                  className="task-select"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  style={{
+                    width: "100%",
+                    fontSize: "14px",
+                  }}
+                  disabled={teamMembers.length === 0}
+                >
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((member) => {
+                    const memberId = typeof member.userId === 'string' ? member.userId : member.userId?._id;
+                    const memberName = member.name || member.userId?.name || member.email || "Unknown";
+                    return (
+                      <option key={memberId} value={memberId}>
+                        {memberName} ({member.role})
+                      </option>
+                    );
+                  })}
+                </select>
+                {teamMembers.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--jira-text-secondary)",
+                      marginTop: "6px",
+                    }}
+                  >
+                    No team members yet. Add members to the team first.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Error Message */}
             {error && (
