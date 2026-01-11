@@ -14,6 +14,11 @@ function serializeTask(taskDoc) {
     userId: task.userId.toString(),
     teamId: task.teamId ? task.teamId.toString() : null,
     projectId: task.projectId ? task.projectId.toString() : null,
+    assignedTo: task.assignedTo ? {
+      _id: task.assignedTo._id?.toString() || task.assignedTo.toString(),
+      name: task.assignedTo.name,
+      email: task.assignedTo.email
+    } : null,
     createdAt: task.createdAt?.toISOString?.() || task.createdAt,
     updatedAt: task.updatedAt?.toISOString?.() || task.updatedAt,
   };
@@ -77,6 +82,10 @@ export async function PUT(request, { params }) {
       }
     });
 
+    if (body.assignedTo !== undefined) {
+      task.assignedTo = body.assignedTo || null;
+    }
+
     if (body.teamId !== undefined) {
       if (body.teamId === null) {
         task.teamId = null;
@@ -120,6 +129,9 @@ export async function PUT(request, { params }) {
     }
 
     await task.save();
+    
+    // Populate assignedTo before serializing
+    await task.populate('assignedTo', 'name email');
 
     return NextResponse.json({ task: serializeTask(task) }, { status: 200 });
   } catch (error) {

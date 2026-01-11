@@ -2,8 +2,9 @@
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import Dashboard from "../components/Dashboard";
 import Header from "../components/Header";
-import KanbanBoardNew from "../components/KanbanBoardNew";
+import ModernKanbanBoard from "../components/ModernKanbanBoard";
 import Sidebar, { MY_WORK, SHOW_ALL_TEAMS, UNASSIGNED_PROJECT } from "../components/Sidebar";
 import TableView from "../components/TableView";
 import TaskModal from "../components/TaskModal";
@@ -105,8 +106,14 @@ export default function Page() {
     const teamMatches = (() => {
       if (activeTeam === SHOW_ALL_TEAMS) return true;
       if (activeTeam === MY_WORK) {
-        // Show only tasks in teams where user is a member
+        // Show tasks assigned to the user OR in teams where user is a member
         if (!session?.user?.id) return false;
+        
+        // Check if task is directly assigned to user
+        const isAssignedToUser = task.assignedTo === session.user.id || task.assignedTo?._id === session.user.id;
+        if (isAssignedToUser) return true;
+        
+        // Check if user is in the task's team
         if (!task.teamId) return false;
         const team = teams.find(t => t._id === task.teamId);
         if (!team) return false;
@@ -169,8 +176,10 @@ export default function Page() {
           {error && <div className="error-message">{error}</div>}
           {!loading && (
             <>
-              {activeView === "kanban" ? (
-                <KanbanBoardNew tasks={filteredTasks} onMoved={fetchTasks} />
+              {activeView === "analytics" ? (
+                <Dashboard tasks={filteredTasks} teams={teams} />
+              ) : activeView === "kanban" ? (
+                <ModernKanbanBoard tasks={filteredTasks} onMoved={fetchTasks} />
               ) : (
                 <TableView tasks={filteredTasks} />
               )}

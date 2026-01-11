@@ -124,7 +124,7 @@ export default function TeamInfoModal({ team, onClose, onUpdate }) {
                 </div>
                 <div>
                   <strong>Created:</strong>{" "}
-                  {new Date(team.createdAt).toLocaleDateString()}
+                  {team.createdAt ? new Date(team.createdAt).toLocaleDateString() : "N/A"}
                 </div>
               </div>
             </div>

@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  useDraggable,
+    closestCorners,
+    DndContext,
+    DragOverlay,
+    PointerSensor,
+    useDraggable,
+    useDroppable,
+    useSensor,
+    useSensors,
 } from "@dnd-kit/core";
-import { updateTask, deleteTask } from "../lib/api/tasks";
+import { useEffect, useRef, useState } from "react";
+import { deleteTask, updateTask } from "../lib/api/tasks";
 
 export default function KanbanBoardNew({ tasks = [], onMoved }) {
   const [editingTask, setEditingTask] = useState(null);
@@ -19,7 +19,9 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
     title: "",
     description: "",
     priority: "medium",
+    assignedTo: "",
   });
+  const [editTeamMembers, setEditTeamMembers] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [optimisticUpdates, setOptimisticUpdates] = useState({});
   const pendingUpdates = useRef(new Set());
@@ -175,18 +177,35 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
   }
 
   // Editing
-  function startEdit(task) {
+  async function startEdit(task) {
     setEditingTask(task._id);
     setEditForm({
       title: task.title,
       description: task.description || "",
       priority: task.priority || "medium",
+      assignedTo: task.assignedTo?._id || task.assignedTo || "",
     });
+    
+    // Load team members if task has a team
+    if (task.teamId) {
+      try {
+        const response = await fetch('/api/teams');
+        const data = await response.json();
+        const team = data.teams?.find(t => t._id === task.teamId);
+        setEditTeamMembers(team?.members || []);
+      } catch (err) {
+        console.error('Failed to load team members:', err);
+        setEditTeamMembers([]);
+      }
+    } else {
+      setEditTeamMembers([]);
+    }
   }
 
   function cancelEdit() {
     setEditingTask(null);
-    setEditForm({ title: "", description: "", priority: "medium" });
+    setEditForm({ title: "", description: "", priority: "medium", assignedTo: "" });
+    setEditTeamMembers([]);
   }
 
   async function saveEdit(id) {
@@ -374,51 +393,93 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
                         {/* Edit Mode */}
                         {editingTask === task._id ? (
                           <div className="task-card-edit">
-                            <input
-                              className="task-edit-input"
-                              value={editForm.title}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  title: e.target.value,
-                                })
-                              }
-                            />
-                            <textarea
-                              className="task-edit-textarea"
-                              value={editForm.description}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  description: e.target.value,
-                                })
-                              }
-                              rows={3}
-                            />
-                            <select
-                              className="task-edit-select"
-                              value={editForm.priority}
-                              onChange={(e) =>
-                                setEditForm({
-                                  ...editForm,
-                                  priority: e.target.value,
-                                })
-                              }
-                            >
-                              <option value="low">Low</option>
-                              <option value="medium">Medium</option>
-                              <option value="high">High</option>
-                            </select>
+                            <div className="edit-form-group">
+                              <label className="edit-form-label">Title</label>
+                              <input
+                                className="edit-form-input"
+                                value={editForm.title}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    title: e.target.value,
+                                  })
+                                }
+                                placeholder="Task title"
+                              />
+                            </div>
+                            
+                            <div className="edit-form-group">
+                              <label className="edit-form-label">Description</label>
+                              <textarea
+                                className="edit-form-textarea"
+                                value={editForm.description}
+                                onChange={(e) =>
+                                  setEditForm({
+                                    ...editForm,
+                                    description: e.target.value,
+                                  })
+                                }
+                                rows={3}
+                                placeholder="Task description"
+                              />
+                            </div>
+                            
+                            <div className="edit-form-row">
+                              <div className="edit-form-group">
+                                <label className="edit-form-label">Priority</label>
+                                <select
+                                  className="edit-form-select"
+                                  value={editForm.priority}
+                                  onChange={(e) =>
+                                    setEditForm({
+                                      ...editForm,
+                                      priority: e.target.value,
+                                    })
+                                  }
+                                >
+                                  <option value="low">Low</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="high">High</option>
+                                </select>
+                              </div>
 
-                            <div className="task-edit-actions">
+                              {editTeamMembers.length > 0 && (
+                                <div className="edit-form-group">
+                                  <label className="edit-form-label">Assign to</label>
+                                  <select
+                                    className="edit-form-select"
+                                    value={editForm.assignedTo}
+                                    onChange={(e) =>
+                                      setEditForm({
+                                        ...editForm,
+                                        assignedTo: e.target.value,
+                                      })
+                                    }
+                                  >
+                                    <option value="">Unassigned</option>
+                                    {editTeamMembers.map((member) => {
+                                      const memberId = typeof member.userId === 'string' ? member.userId : member.userId?._id;
+                                      const memberName = member.name || member.userId?.name || member.email || "Unknown";
+                                      return (
+                                        <option key={memberId} value={memberId}>
+                                          {memberName} ({member.role})
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="edit-form-actions">
                               <button
-                                className="btn-save"
+                                className="btn-primary"
                                 onClick={() => saveEdit(task._id)}
                               >
-                                Save
+                                Save Changes
                               </button>
                               <button
-                                className="btn-cancel"
+                                className="btn-secondary"
                                 onClick={cancelEdit}
                               >
                                 Cancel
@@ -450,9 +511,18 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
                                 {task.title.charAt(0).toUpperCase()}
                               </div>
 
-                              <h4 className="task-card-title-new">
-                                {task.title}
-                              </h4>
+                              <div style={{ flex: 1 }}>
+                                <h4 className="task-card-title-new">
+                                  {task.title}
+                                </h4>
+                                <div style={{ 
+                                  fontSize: "11px", 
+                                  color: "var(--jira-text-secondary)",
+                                  marginTop: "2px"
+                                }}>
+                                  {task.assignedTo?.name || (task.assignedTo ? "Unknown User" : "Unassigned")}
+                                </div>
+                              </div>
                             </div>
 
                             {/* Description */}
@@ -554,7 +624,16 @@ export default function KanbanBoardNew({ tasks = [], onMoved }) {
               >
                 {activeTask.title.charAt(0).toUpperCase()}
               </div>
-              <h4 className="task-card-title-new">{activeTask.title}</h4>
+              <div style={{ flex: 1 }}>
+                <h4 className="task-card-title-new">{activeTask.title}</h4>
+                <div style={{ 
+                  fontSize: "11px", 
+                  color: "var(--jira-text-secondary)",
+                  marginTop: "2px"
+                }}>
+                  {activeTask.assignedTo?.name || (activeTask.assignedTo ? "Unknown User" : "Unassigned")}
+                </div>
+              </div>
             </div>
             {activeTask.description && (
               <p className="task-card-description-new">

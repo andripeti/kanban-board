@@ -74,6 +74,13 @@ export default function Header({ onAddNew, onSearch, activeView, onViewChange })
             <span className="view-icon">▦</span>
             <span>Kanban board</span>
           </button>
+          <button
+            className={`view-btn ${activeView === "analytics" ? "active" : ""}`}
+            onClick={() => onViewChange && onViewChange("analytics")}
+          >
+            <span className="view-icon">📊</span>
+            <span>Analytics</span>
+          </button>
         </div>
       </div>
 
