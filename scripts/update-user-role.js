@@ -2,11 +2,9 @@ const mongoose = require('mongoose');
 
 async function updateUserRole() {
   try {
-    // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/kanban-board');
     console.log('Connected to MongoDB');
 
-    // Define User schema
     const UserSchema = new mongoose.Schema({
       name: String,
       email: String,
@@ -15,7 +13,6 @@ async function updateUserRole() {
 
     const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
-    // Update the user role
     const email = 'klek766@gmail.com';
     const result = await User.findOneAndUpdate(
       { email: email },

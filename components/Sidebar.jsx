@@ -25,7 +25,6 @@ function projectMatchesTeam(project, teamFilter) {
   const projectTeams = Array.isArray(project.teamIds) ? project.teamIds : [];
   if (teamFilter === SHOW_ALL_TEAMS) return true;
   if (teamFilter === null) return projectTeams.length === 0;
-  // Unassigned projects (no teams) only show in Unassigned node, not in team nodes
   if (projectTeams.length === 0) return false;
   return projectTeams.includes(teamFilter);
 }
@@ -349,7 +348,6 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
           </button>
         </div>
 
-        {/* Teams section */}
         <div className="sidebar-section">
           <div className="sidebar-section-header">
             <span>▼</span>
@@ -523,7 +521,6 @@ export default function Sidebar({ onTeamChange, onProjectChange }) {
           </div>
         </div>
 
-        {/* Projects section */}
         <div className="sidebar-section">
           <div className="sidebar-section-header">
             <span>▼</span>

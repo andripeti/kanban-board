@@ -24,7 +24,6 @@ function serializeTask(taskDoc) {
   };
 }
 
-// GET all tasks for the authenticated user
 export async function GET(request) {
   try {
     const session = await requireAuth();
@@ -35,7 +34,6 @@ export async function GET(request) {
     const projectId = searchParams.get('projectId');
     const includeUnassigned = searchParams.get('includeUnassigned');
 
-    // Find all teams where user is owner or member
     const userTeams = await Team.find({
       $or: [
         { userId: session.user.id },
@@ -45,7 +43,6 @@ export async function GET(request) {
 
     const userTeamIds = userTeams.map(team => team._id.toString());
 
-    // Base query: tasks from user's teams OR tasks created by user
     const query = {
       $or: [
         { userId: session.user.id },
@@ -94,7 +91,6 @@ export async function GET(request) {
   }
 }
 
-// POST create a new task
 export async function POST(request) {
   try {
     const session = await requireAuth();
@@ -144,12 +140,10 @@ export async function POST(request) {
           );
         }
       } else if (project.teamIds.length === 1) {
-        // Auto-set team if project only belongs to one team
         resolvedTeamId = project.teamIds[0];
       }
     }
 
-    // Check if user has permission to create tasks
     const hasPermission = await canCreateTasks(session, resolvedTeamId);
     if (!hasPermission) {
       return NextResponse.json(
@@ -169,7 +163,6 @@ export async function POST(request) {
       userId: session.user.id,
     });
 
-    // Populate assignedTo before serializing
     await task.populate('assignedTo', 'name email');
 
     return NextResponse.json({ task: serializeTask(task) }, { status: 201 });

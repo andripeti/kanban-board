@@ -30,7 +30,6 @@ export async function GET() {
     const session = await requireAuth();
     await dbConnect();
 
-    // Find teams where user is either the owner OR a member
     const teams = await Team.find({
       $or: [
         { userId: session.user.id },

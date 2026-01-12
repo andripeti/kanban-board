@@ -24,7 +24,6 @@ function serializeTask(taskDoc) {
   };
 }
 
-// GET single task
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
@@ -36,7 +35,6 @@ export async function GET(request, { params }) {
 
     await dbConnect();
 
-    // Find all teams where user is owner or member
     const userTeams = await Team.find({
       $or: [
         { userId: session.user.id },
@@ -46,7 +44,6 @@ export async function GET(request, { params }) {
 
     const userTeamIds = userTeams.map(team => team._id.toString());
 
-    // Find task where user has access (either created by user or in user's team)
     const task = await Task.findOne({
       _id: id,
       $or: [
@@ -73,7 +70,6 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT update task
 export async function PUT(request, { params }) {
   try {
     const session = await requireAuth();
@@ -86,7 +82,6 @@ export async function PUT(request, { params }) {
 
     await dbConnect();
 
-    // Find all teams where user is owner or member
     const userTeams = await Team.find({
       $or: [
         { userId: session.user.id },
@@ -96,7 +91,6 @@ export async function PUT(request, { params }) {
 
     const userTeamIds = userTeams.map(team => team._id.toString());
 
-    // Find task where user has access
     const task = await Task.findOne({
       _id: id,
       $or: [
@@ -163,8 +157,7 @@ export async function PUT(request, { params }) {
     }
 
     await task.save();
-    
-    // Populate assignedTo before serializing
+
     await task.populate('assignedTo', 'name email');
 
     return NextResponse.json({ task: serializeTask(task) }, { status: 200 });
@@ -181,7 +174,6 @@ export async function PUT(request, { params }) {
   }
 }
 
-// DELETE task
 export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
@@ -193,7 +185,6 @@ export async function DELETE(request, { params }) {
 
     await dbConnect();
 
-    // Find all teams where user is owner or member
     const userTeams = await Team.find({
       $or: [
         { userId: session.user.id },
@@ -203,7 +194,6 @@ export async function DELETE(request, { params }) {
 
     const userTeamIds = userTeams.map(team => team._id.toString());
 
-    // Find and delete task where user has access
     const task = await Task.findOneAndDelete({
       _id: id,
       $or: [

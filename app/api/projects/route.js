@@ -33,7 +33,6 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const teamId = searchParams.get('teamId');
 
-    // First, find all teams where user is owner or member
     const userTeams = await Team.find({
       $or: [
         { userId: session.user.id },
@@ -43,17 +42,16 @@ export async function GET(request) {
 
     const userTeamIds = userTeams.map(team => team._id.toString());
 
-    // Find projects that belong to any of the user's teams
     const query = {
       $or: [
-        { userId: session.user.id }, // Projects created by user
-        { teamIds: { $in: userTeamIds } } // Projects in user's teams
+        { userId: session.user.id },
+        { teamIds: { $in: userTeamIds } }
       ]
     };
 
     if (teamId && mongoose.Types.ObjectId.isValid(teamId)) {
       query.teamIds = teamId;
-      delete query.$or; // Override with specific team filter
+      delete query.$or;
     }
 
     const projects = await Project.find(query).sort({ name: 1 });
@@ -79,7 +77,6 @@ export async function POST(request) {
 
     await dbConnect();
 
-    // Check if user has permission to create projects for at least one of the teams
     if (teamIds && teamIds.length > 0) {
       const hasPermission = await canManageProjects(session, teamIds[0]);
       if (!hasPermission) {
