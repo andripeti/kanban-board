@@ -49,7 +49,30 @@ export default function ModernTaskModal({ isOpen, onClose, initialTeam, initialP
   const loadTeamMembers = () => {
     const team = teams.find(t => t._id === selectedTeam);
     if (team) {
-      setTeamMembers(team.members || []);
+      // Start with regular members
+      const members = [...(team.members || [])];
+      const owner = team.userId;
+      
+      // Add owner to members list if not already included
+      if (owner) {
+        const ownerId = owner._id || owner;
+        const ownerInMembers = members.some(m => {
+          const memberId = m.userId?._id || m.userId;
+          return memberId === ownerId;
+        });
+        
+        if (!ownerInMembers) {
+          // Add owner at the beginning with same structure as other members
+          members.unshift({
+            userId: owner._id || owner,
+            name: owner.name,
+            email: owner.email,
+            role: 'Owner'
+          });
+        }
+      }
+      
+      setTeamMembers(members);
     }
   };
 
@@ -224,11 +247,16 @@ export default function ModernTaskModal({ isOpen, onClose, initialTeam, initialP
                 disabled={!selectedTeam}
               >
                 <option value="">Unassigned</option>
-                {teamMembers.map((member) => (
-                  <option key={member.userId?._id || member.userId} value={member.userId?._id || member.userId}>
-                    {member.userId?.name || member.userId?.email || "Unknown"}
-                  </option>
-                ))}
+                {teamMembers.map((member) => {
+                  const memberId = member.userId;
+                  const memberName = member.name || member.email || "Unknown";
+                  const memberRole = member.role || "Member";
+                  return (
+                    <option key={memberId} value={memberId}>
+                      {memberName} ({memberRole})
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

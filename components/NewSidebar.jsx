@@ -1,12 +1,12 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { createProject, getProjects } from "../lib/api/projects";
 import { createTeam, getTeams } from "../lib/api/teams";
+import ProjectSettingsModal from "./ProjectSettingsModal";
 import TeamInfoModal from "./TeamInfoModal";
 import TeamMembersModal from "./TeamMembersModal";
-import ProjectSettingsModal from "./ProjectSettingsModal";
 
 export const SHOW_ALL_TEAMS = "__SHOW_ALL_TEAMS__";
 export const MY_WORK = "__MY_WORK__";
@@ -111,9 +111,6 @@ export default function NewSidebar({ onTeamChange, onProjectChange }) {
             <div className="ns-user-name">{session.user.name}</div>
             <div className="ns-user-email">{session.user.email}</div>
           </div>
-          <button className="ns-logout" onClick={() => signOut()} title="Sign out">
-            ⏻
-          </button>
         </div>
       )}
 

@@ -173,7 +173,37 @@ export default function ModernKanbanBoard({ tasks = [], onMoved }) {
         const response = await fetch('/api/teams');
         const data = await response.json();
         const team = data.teams?.find(t => t._id === task.teamId);
-        setEditTeamMembers(team?.members || []);
+        
+        // Start with regular members
+        const members = team?.members || [];
+        const owner = team?.userId;
+        
+        console.log('Owner object:', owner);
+        console.log('Owner type:', typeof owner);
+        console.log('Members before adding owner:', members);
+        
+        // Add owner to members list if not already included
+        if (owner) {
+          const ownerId = owner._id || owner;
+          const ownerInMembers = members.some(m => {
+            const memberId = m.userId?._id || m.userId;
+            return memberId === ownerId;
+          });
+          
+          if (!ownerInMembers) {
+            // Add owner at the beginning with same structure as other members
+            members.unshift({
+              userId: owner._id || owner,
+              name: owner.name,
+              email: owner.email,
+              role: 'Owner'
+            });
+            console.log('Added owner to members:', members[0]);
+          }
+        }
+        
+        console.log('Final members array:', members);
+        setEditTeamMembers(members);
       } catch (err) {
         console.error('Failed to load team members:', err);
         setEditTeamMembers([]);
@@ -190,11 +220,26 @@ export default function ModernKanbanBoard({ tasks = [], onMoved }) {
   };
 
   const saveEdit = async (taskId) => {
+    // Find the full user object for the assignedTo field
+    const assignedUser = editForm.assignedTo 
+      ? editTeamMembers.find(m => m.userId === editForm.assignedTo)
+      : null;
+    
+    // Create optimistic update with full user object
+    const optimisticData = {
+      ...editForm,
+      assignedTo: assignedUser ? {
+        _id: assignedUser.userId,
+        name: assignedUser.name,
+        email: assignedUser.email
+      } : null
+    };
+    
     // Optimistic update
     pendingUpdates.current.add(taskId);
     setOptimisticUpdates((prev) => ({
       ...prev,
-      [taskId]: { ...prev[taskId], ...editForm },
+      [taskId]: { ...prev[taskId], ...optimisticData },
     }));
     setEditingTask(null);
 
@@ -337,8 +382,8 @@ export default function ModernKanbanBoard({ tasks = [], onMoved }) {
                           >
                             <option value="">Unassigned</option>
                             {editTeamMembers.map((member) => {
-                              const memberId = typeof member.userId === 'string' ? member.userId : member.userId?._id;
-                              const memberName = member.name || member.userId?.name || member.email || "Unknown";
+                              const memberId = member.userId;
+                              const memberName = member.name || member.email || "Unknown";
                               return (
                                 <option key={memberId} value={memberId}>
                                   {memberName} ({member.role})

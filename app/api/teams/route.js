@@ -8,7 +8,11 @@ function serializeTeam(doc) {
   return {
     ...team,
     _id: team._id.toString(),
-    userId: team.userId.toString(),
+    userId: team.userId?._id ? {
+      _id: team.userId._id.toString(),
+      name: team.userId.name,
+      email: team.userId.email
+    } : team.userId.toString(),
     members: team.members?.map((m) => ({
       userId: m.userId?._id?.toString() || m.userId?.toString() || m.userId,
       name: m.userId?.name,
@@ -27,6 +31,7 @@ export async function GET() {
     await dbConnect();
 
     const teams = await Team.find({ userId: session.user.id })
+      .populate('userId', 'name email')
       .populate({
         path: 'members.userId',
         select: 'name email',
