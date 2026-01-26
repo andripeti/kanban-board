@@ -1,12 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { removeTeamMember } from "../lib/api/teams";
+import { removeTeamMember, updateTeamMemberRole } from "../lib/api/teams";
 
-export default function TeamInfoModal({ team, onClose, onUpdate }) {
+const ROLES = [
+  { value: "admin", label: "Admin" },
+  { value: "member", label: "Member" },
+  { value: "viewOnly", label: "View Only" },
+];
+
+const ROLE_DISPLAY_NAMES = {
+  admin: "Admin",
+  member: "Member",
+  viewOnly: "View Only",
+};
+
+export default function TeamInfoModal({ team, currentUserId, onClose, onUpdate }) {
   const [loading, setLoading] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState(null);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  const currentUserMember = team.members?.find(m => m.userId === currentUserId);
+  const isCurrentUserAdmin = currentUserMember?.role === "admin";
 
   const handleRemoveMember = async (userId) => {
     setLoading(true);
@@ -19,6 +35,23 @@ export default function TeamInfoModal({ team, onClose, onUpdate }) {
       onUpdate?.(updatedTeam);
     } catch (err) {
       setError(err.message || "Failed to remove member");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const updatedTeam = await updateTeamMemberRole(team._id, userId, newRole);
+      setSuccess("Role updated successfully");
+      setEditingMemberId(null);
+      onUpdate?.(updatedTeam);
+    } catch (err) {
+      setError(err.message || "Failed to update role");
     } finally {
       setLoading(false);
     }
@@ -146,56 +179,95 @@ export default function TeamInfoModal({ team, onClose, onUpdate }) {
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {team.members.map((member) => (
-                    <div
-                      key={member.userId}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: "12px",
-                        background: "#253858",
-                        borderRadius: "4px",
-                        border: "1px solid #2d3a4b",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: "14px", color: "#fff", marginBottom: "2px" }}>
-                          {member.name || "Unknown User"}
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#8993a4" }}>
-                          {member.email}
-                        </div>
-                      </div>
+                  {team.members.map((member) => {
+                    const isEditingThis = editingMemberId === member.userId;
+                    const canEditThis = isCurrentUserAdmin && member.userId !== currentUserId;
+                    const canRemoveThis = isCurrentUserAdmin && member.userId !== currentUserId;
+                    
+                    return (
                       <div
+                        key={member.userId}
                         style={{
-                          padding: "4px 12px",
-                          fontSize: "12px",
-                          background: "#0052cc33",
-                          color: "#4c9aff",
-                          borderRadius: "12px",
-                          marginRight: "12px",
-                        }}
-                      >
-                        {member.role || "Member"}
-                      </div>
-                      <button
-                        onClick={() => handleRemoveMember(member.userId)}
-                        disabled={loading}
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "12px",
-                          background: "transparent",
-                          color: "#ff6b6b",
-                          border: "1px solid #ff6b6b",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "12px",
+                          background: "#253858",
                           borderRadius: "4px",
-                          cursor: loading ? "not-allowed" : "pointer",
+                          border: "1px solid #2d3a4b",
                         }}
                       >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "14px", color: "#fff", marginBottom: "2px" }}>
+                            {member.name || "Unknown User"}
+                            {member.userId === currentUserId && (
+                              <span style={{ color: "#8993a4", marginLeft: "8px", fontSize: "12px" }}>(You)</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#8993a4" }}>
+                            {member.email}
+                          </div>
+                        </div>
+                        {isEditingThis ? (
+                          <select
+                            value={member.role}
+                            onChange={(e) => handleRoleChange(member.userId, e.target.value)}
+                            disabled={loading}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: "12px",
+                              background: "#1e2936",
+                              border: "1px solid #4a5f7f",
+                              borderRadius: "4px",
+                              color: "#ffffff",
+                              marginRight: "12px",
+                              cursor: loading ? "not-allowed" : "pointer",
+                            }}
+                            onBlur={() => setEditingMemberId(null)}
+                          >
+                            {ROLES.map((role) => (
+                              <option key={role.value} value={role.value}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div
+                            onClick={() => canEditThis && setEditingMemberId(member.userId)}
+                            style={{
+                              padding: "4px 12px",
+                              fontSize: "12px",
+                              background: member.role === "admin" ? "#4caf5033" : member.role === "viewOnly" ? "#ff980033" : "#0052cc33",
+                              color: member.role === "admin" ? "#81c784" : member.role === "viewOnly" ? "#ffb74d" : "#4c9aff",
+                              borderRadius: "12px",
+                              marginRight: "12px",
+                              cursor: canEditThis ? "pointer" : "default",
+                            }}
+                            title={canEditThis ? "Click to change role" : ""}
+                          >
+                            {ROLE_DISPLAY_NAMES[member.role] || member.role || "Member"}
+                          </div>
+                        )}
+                        {canRemoveThis && (
+                          <button
+                            onClick={() => handleRemoveMember(member.userId)}
+                            disabled={loading}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "12px",
+                              background: "transparent",
+                              color: "#ff6b6b",
+                              border: "1px solid #ff6b6b",
+                              borderRadius: "4px",
+                              cursor: loading ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canEditInTeam } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import Project from '@/lib/models/Project';
 import Task from '@/lib/models/Task';
@@ -18,31 +18,48 @@ function serializeProject(doc) {
   };
 }
 
-async function resolveTeamIds(teamIds, userId) {
+async function resolveTeamIds(teamIds) {
   if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
   const validIds = [...new Set(teamIds.filter((id) => mongoose.Types.ObjectId.isValid(id)))];
   if (validIds.length === 0) return [];
-  const teams = await Team.find({ _id: { $in: validIds }, userId });
+  const teams = await Team.find({ _id: { $in: validIds } });
   return teams.map((team) => team._id);
 }
 
-async function findProjectOr404(id, userId) {
+async function findProjectAndCheckAccess(id, userId) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return { error: 'Invalid project ID', status: 400 };
   }
   await dbConnect();
-  const project = await Project.findOne({ _id: id, userId });
+  const project = await Project.findById(id);
   if (!project) {
     return { error: 'Project not found', status: 404 };
   }
-  return { project };
+  
+  const isOwner = project.userId.toString() === userId;
+  
+  let hasTeamAccess = false;
+  if (project.teamIds && project.teamIds.length > 0) {
+    for (const teamId of project.teamIds) {
+      if (await canEditInTeam(userId, teamId)) {
+        hasTeamAccess = true;
+        break;
+      }
+    }
+  }
+  
+  if (!isOwner && !hasTeamAccess) {
+    return { error: 'You do not have permission to access this project', status: 403 };
+  }
+  
+  return { project, isOwner, hasTeamAccess };
 }
 
 export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
     const { id } = params;
-    const result = await findProjectOr404(id, session.user.id);
+    const result = await findProjectAndCheckAccess(id, session.user.id);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -63,7 +80,7 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { name, icon, teamIds } = body;
 
-    const result = await findProjectOr404(id, session.user.id);
+    const result = await findProjectAndCheckAccess(id, session.user.id);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -80,13 +97,24 @@ export async function PUT(request, { params }) {
     }
 
     if (teamIds !== undefined) {
-      const resolved = await resolveTeamIds(teamIds, session.user.id);
+      for (const teamId of teamIds) {
+        if (mongoose.Types.ObjectId.isValid(teamId)) {
+          const hasPermission = await canEditInTeam(session.user.id, teamId);
+          if (!hasPermission) {
+            return NextResponse.json(
+              { error: 'You do not have edit access to one of the selected teams' },
+              { status: 403 }
+            );
+          }
+        }
+      }
+      
+      const resolved = await resolveTeamIds(teamIds);
       result.project.teamIds = resolved;
 
       if (resolved.length > 0) {
         await Task.updateMany(
           {
-            userId: session.user.id,
             projectId: result.project._id,
             teamId: { $nin: resolved },
           },
@@ -114,13 +142,13 @@ export async function DELETE(request, { params }) {
   try {
     const session = await requireAuth();
     const { id } = params;
-    const result = await findProjectOr404(id, session.user.id);
+    const result = await findProjectAndCheckAccess(id, session.user.id);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     await Task.updateMany(
-      { userId: session.user.id, projectId: result.project._id },
+      { projectId: result.project._id },
       { $set: { projectId: null } }
     );
 

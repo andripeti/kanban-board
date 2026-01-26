@@ -4,11 +4,15 @@ import { useState } from "react";
 import { addTeamMember } from "../lib/api/teams";
 import UsersListModal from "./UsersListModal";
 
-const ROLES = ["Member", "Tech Lead", "QA", "Admin","Project Manager"];
+const ROLES = [
+  { value: "member", label: "Member" },
+  { value: "viewOnly", label: "View Only" },
+  { value: "admin", label: "Admin" },
+];
 
 export default function TeamMembersModal({ team, onClose, onUpdate }) {
   const [memberEmail, setMemberEmail] = useState("");
-  const [memberRole, setMemberRole] = useState("Member");
+  const [memberRole, setMemberRole] = useState("member");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -23,9 +27,10 @@ export default function TeamMembersModal({ team, onClose, onUpdate }) {
 
     try {
       const updatedTeam = await addTeamMember(team._id, memberEmail.trim(), memberRole);
-      setSuccess(`User ${memberEmail} added successfully as ${memberRole}! Email notification sent.`);
+      const roleLabel = ROLES.find(r => r.value === memberRole)?.label || memberRole;
+      setSuccess(`User ${memberEmail} added successfully as ${roleLabel}! Email notification sent.`);
       setMemberEmail("");
-      setMemberRole("Member");
+      setMemberRole("member");
       onUpdate?.(updatedTeam);
     } catch (err) {
       setError(err.message || "Failed to add member");
@@ -180,8 +185,8 @@ export default function TeamMembersModal({ team, onClose, onUpdate }) {
                 }}
               >
                 {ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
+                  <option key={role.value} value={role.value}>
+                    {role.label}
                   </option>
                 ))}
               </select>
