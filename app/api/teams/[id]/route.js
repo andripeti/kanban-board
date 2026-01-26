@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, isTeamAdmin, canViewTeam } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import Project from '@/lib/models/Project';
 import Task from '@/lib/models/Task';
@@ -16,7 +16,7 @@ function serializeTeam(doc) {
       userId: m.userId?._id?.toString() || m.userId?.toString() || m.userId,
       name: m.userId?.name,
       email: m.userId?.email,
-      role: m.role || 'Member',
+      role: m.role || 'member',
       addedAt: m.addedAt?.toISOString?.() || m.addedAt,
     })) || [],
     createdAt: team.createdAt?.toISOString?.() || team.createdAt,
@@ -24,15 +24,28 @@ function serializeTeam(doc) {
   };
 }
 
-async function findTeamOr404(id, userId) {
+async function findTeamAndCheckAccess(id, userId, requireAdmin = false) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return { error: 'Invalid team ID', status: 400 };
   }
   await dbConnect();
-  const team = await Team.findOne({ _id: id, userId }).populate('members.userId', 'name email');
+  const team = await Team.findById(id).populate('members.userId', 'name email');
   if (!team) {
     return { error: 'Team not found', status: 404 };
   }
+  
+  const canView = await canViewTeam(userId, id);
+  if (!canView) {
+    return { error: 'You do not have access to this team', status: 403 };
+  }
+  
+  if (requireAdmin) {
+    const isAdmin = await isTeamAdmin(userId, id);
+    if (!isAdmin) {
+      return { error: 'Only team admins can perform this action', status: 403 };
+    }
+  }
+  
   return { team };
 }
 
@@ -40,7 +53,7 @@ export async function GET(request, { params }) {
   try {
     const session = await requireAuth();
     const { id } = params;
-    const result = await findTeamOr404(id, session.user.id);
+    const result = await findTeamAndCheckAccess(id, session.user.id);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -64,7 +77,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
     }
 
-    const result = await findTeamOr404(id, session.user.id);
+    const result = await findTeamAndCheckAccess(id, session.user.id, true);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -90,17 +103,17 @@ export async function DELETE(request, { params }) {
     const session = await requireAuth();
     const { id } = params;
 
-    const result = await findTeamOr404(id, session.user.id);
+    const result = await findTeamAndCheckAccess(id, session.user.id, true);
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     await Project.updateMany(
-      { userId: session.user.id },
+      { teamIds: result.team._id },
       { $pull: { teamIds: result.team._id } }
     );
     await Task.updateMany(
-      { userId: session.user.id, teamId: result.team._id },
+      { teamId: result.team._id },
       { $set: { teamId: null } }
     );
 

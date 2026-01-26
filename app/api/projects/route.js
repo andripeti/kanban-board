@@ -1,4 +1,4 @@
-import { requireAuth, requireAdmin, canManageProjects } from '@/lib/auth';
+import { requireAuth, canManageProjects, canEditInTeam } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import Project from '@/lib/models/Project';
 import Team from '@/lib/models/Team';
@@ -17,11 +17,11 @@ function serializeProject(doc) {
   };
 }
 
-async function resolveTeamIds(teamIds, userId) {
+async function resolveTeamIds(teamIds) {
   if (!Array.isArray(teamIds) || teamIds.length === 0) return [];
   const validIds = [...new Set(teamIds.filter((id) => mongoose.Types.ObjectId.isValid(id)))];
   if (validIds.length === 0) return [];
-  const teams = await Team.find({ _id: { $in: validIds }, userId });
+  const teams = await Team.find({ _id: { $in: validIds } });
   return teams.map((team) => team._id);
 }
 
@@ -78,16 +78,20 @@ export async function POST(request) {
     await dbConnect();
 
     if (teamIds && teamIds.length > 0) {
-      const hasPermission = await canManageProjects(session, teamIds[0]);
-      if (!hasPermission) {
-        return NextResponse.json(
-          { error: 'Forbidden: You need Admin or Project Manager role in this team to create projects' },
-          { status: 403 }
-        );
+      for (const teamId of teamIds) {
+        if (mongoose.Types.ObjectId.isValid(teamId)) {
+          const hasPermission = await canEditInTeam(session.user.id, teamId);
+          if (!hasPermission) {
+            return NextResponse.json(
+              { error: 'Forbidden: You need Admin or Member role in the team to create projects' },
+              { status: 403 }
+            );
+          }
+        }
       }
     }
 
-    const resolvedTeamIds = await resolveTeamIds(teamIds, session.user.id);
+    const resolvedTeamIds = await resolveTeamIds(teamIds);
 
     const project = await Project.create({
       name: name.trim(),

@@ -262,6 +262,7 @@ export default function NewSidebar({ onTeamChange, onProjectChange }) {
       {selectedTeamForInfo && (
         <TeamInfoModal
           team={selectedTeamForInfo}
+          currentUserId={session?.user?.id}
           onClose={() => setSelectedTeamForInfo(null)}
           onUpdate={() => fetchData()}
         />

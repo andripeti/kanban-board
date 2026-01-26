@@ -1,10 +1,9 @@
-import { requireAuth, canCreateTasks } from '@/lib/auth';
+import { requireAuth, canCreateTasks, canEditInTeam } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import { sendTaskAssignmentEmail } from '@/lib/email';
 import Project from '@/lib/models/Project';
 import Task from '@/lib/models/Task';
 import Team from '@/lib/models/Team';
-import User from '@/lib/models/User';
 import mongoose from 'mongoose';
 import { NextResponse } from 'next/server';
 
@@ -116,9 +115,13 @@ export async function POST(request) {
       if (!mongoose.Types.ObjectId.isValid(teamId)) {
         return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
       }
-      const team = await Team.findOne({ _id: teamId, userId: session.user.id });
+      const team = await Team.findById(teamId);
       if (!team) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+      const canEdit = await canEditInTeam(session.user.id, teamId);
+      if (!canEdit) {
+        return NextResponse.json({ error: 'You do not have edit access to this team' }, { status: 403 });
       }
       resolvedTeamId = team._id;
     }
@@ -127,7 +130,7 @@ export async function POST(request) {
       if (!mongoose.Types.ObjectId.isValid(projectId)) {
         return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
       }
-      const project = await Project.findOne({ _id: projectId, userId: session.user.id });
+      const project = await Project.findById(projectId);
       if (!project) {
         return NextResponse.json({ error: 'Project not found' }, { status: 404 });
       }
@@ -146,12 +149,14 @@ export async function POST(request) {
       }
     }
 
-    const hasPermission = await canCreateTasks(session, resolvedTeamId);
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'Forbidden: You need admin, project_manager role, or Project Manager role in this team to create tasks' },
-        { status: 403 }
-      );
+    if (resolvedTeamId) {
+      const hasPermission = await canCreateTasks(session, resolvedTeamId);
+      if (!hasPermission) {
+        return NextResponse.json(
+          { error: 'Forbidden: You need admin or member role in this team to create tasks' },
+          { status: 403 }
+        );
+      }
     }
 
     const task = await Task.create({

@@ -69,6 +69,13 @@ export async function POST(request) {
     const team = await Team.create({
       name: name.trim(),
       userId: session.user.id,
+      members: [
+        {
+          userId: session.user.id,
+          role: 'admin',
+          addedAt: new Date(),
+        },
+      ],
     });
 
     return NextResponse.json({ team: serializeTeam(team) }, { status: 201 });

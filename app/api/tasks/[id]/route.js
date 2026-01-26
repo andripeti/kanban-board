@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, canEditInTeam, canViewTeam } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import { sendTaskAssignmentEmail } from '@/lib/email';
 import Project from '@/lib/models/Project';
@@ -83,25 +83,17 @@ export async function PUT(request, { params }) {
 
     await dbConnect();
 
-    const userTeams = await Team.find({
-      $or: [
-        { userId: session.user.id },
-        { 'members.userId': session.user.id }
-      ]
-    });
-
-    const userTeamIds = userTeams.map(team => team._id.toString());
-
-    const task = await Task.findOne({
-      _id: id,
-      $or: [
-        { userId: session.user.id },
-        { teamId: { $in: userTeamIds } }
-      ]
-    });
+    const task = await Task.findById(id);
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
+
+    const isTaskOwner = task.userId.toString() === session.user.id;
+    const hasEditAccess = task.teamId ? await canEditInTeam(session.user.id, task.teamId) : isTaskOwner;
+
+    if (!hasEditAccess) {
+      return NextResponse.json({ error: 'You do not have permission to edit this task' }, { status: 403 });
     }
 
     const oldAssignedTo = task.assignedTo?.toString();
@@ -127,9 +119,13 @@ export async function PUT(request, { params }) {
         if (!mongoose.Types.ObjectId.isValid(body.teamId)) {
           return NextResponse.json({ error: 'Invalid team ID' }, { status: 400 });
         }
-        const team = await Team.findOne({ _id: body.teamId, userId: session.user.id });
+        const team = await Team.findById(body.teamId);
         if (!team) {
           return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+        }
+        const canEdit = await canEditInTeam(session.user.id, body.teamId);
+        if (!canEdit) {
+          return NextResponse.json({ error: 'You do not have edit access to this team' }, { status: 403 });
         }
         task.teamId = team._id;
       }
@@ -142,7 +138,7 @@ export async function PUT(request, { params }) {
         if (!mongoose.Types.ObjectId.isValid(body.projectId)) {
           return NextResponse.json({ error: 'Invalid project ID' }, { status: 400 });
         }
-        const project = await Project.findOne({ _id: body.projectId, userId: session.user.id });
+        const project = await Project.findById(body.projectId);
         if (!project) {
           return NextResponse.json({ error: 'Project not found' }, { status: 404 });
         }
@@ -220,26 +216,20 @@ export async function DELETE(request, { params }) {
 
     await dbConnect();
 
-    const userTeams = await Team.find({
-      $or: [
-        { userId: session.user.id },
-        { 'members.userId': session.user.id }
-      ]
-    });
-
-    const userTeamIds = userTeams.map(team => team._id.toString());
-
-    const task = await Task.findOneAndDelete({
-      _id: id,
-      $or: [
-        { userId: session.user.id },
-        { teamId: { $in: userTeamIds } }
-      ]
-    });
+    const task = await Task.findById(id);
 
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+    const isTaskOwner = task.userId.toString() === session.user.id;
+    const hasEditAccess = task.teamId ? await canEditInTeam(session.user.id, task.teamId) : isTaskOwner;
+
+    if (!hasEditAccess) {
+      return NextResponse.json({ error: 'You do not have permission to delete this task' }, { status: 403 });
+    }
+
+    await Task.findByIdAndDelete(id);
 
     return NextResponse.json({ message: 'Task deleted successfully' }, { status: 200 });
   } catch (error) {
